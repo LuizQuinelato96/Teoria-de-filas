@@ -1,0 +1,81 @@
+---
+title: "Teoria das filas"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+Modelo para se utilizar as funcoes de teoria das filas
+Aqui teremos a aplicação da teoria de filas 
+
+## Modelo de filas
+Aqui foi criado uma funcao com o pacote queueing onde colocaremos os vetores: 
+
+* Lambda: Volumetria da hora <br/>
+* mu: Média da quantidade de chamadas atendidas por operador na hora especifica<br/>
+* hora: Hora especifica do Lambd e mu<br/>
+
+obs: Exitem variações no modelo de fila, nesse exemplo estamos utilizando o modelo MMC
+```{r echo=TRUE}
+library(queueing)
+library(dplyr)
+# Acerta Qtd. op ----  
+library(dplyr)
+otimiza<- function(lambda,mu,c,hora){
+  temp<-NewInput.MMC(lambda,mu, c)
+  temp2<-QueueingModel(temp)
+  data<- data.frame("Fluxo" = lambda,
+                    "Taxa média atendimento"=mu,
+                    "Tempo medio de espera na fila minutos" = round(temp2$Wq*60,3),
+                   # "Prob do tempo de espera ser 0" = round(temp2$Pn,4),
+                   # "Taxa de ocupacao " = temp2$RO,
+                   # "Numero medio clientes na fila" =temp2$Lq,
+                   # "Numero medio clientes na fila quando tem fila" = temp2$Lqq,
+                   # "Variancia do numero de clientes na fila" = temp2$VN,
+                   # "Variancia do tempo de espera no sistema" = round(temp2$VT*60,3),
+                   # "Variancia do tempo de espera na fila" = round(temp2$VTq*60,3),
+                    "Hora"= hora,
+                    "Qtd_op" = c)
+  return(data)
+}
+
+filtra = function(lambda,mu=mu,hora){
+  c<-1:70
+    c_filtrado<-which(c>lambda/mu)
+  data.frame(lambda =lambda,mu = mu,c = c_filtrado,hora= hora)
+}
+
+```
+## Simulando dados
+Simulando o numero de chegadas de clientes em um dia por hora, considerando que nosso serviço tem uma taxa de atendimento de mu  = 3. abaixo os dados
+
+```{r echo=TRUE}
+data = as.Date("2020-05-20")+1:2
+Hmd = rep(8:17,2); Hmd %>% length()
+Lambda = rep(seq(60,150,by = 10),2)+rnorm(1,5,10)
+mu = rep(3,20)
+dados<-data.frame(data,Hmd,Lambda,mu);dados 
+```
+
+
+
+## Aplicando a função
+
+```{r echo=TRUE}
+Presc_temp<-purrr::pmap_dfr(list(lambda = dados$Lambda,
+                                 mu =dados$mu,hora = dados$Hmd),
+                            filtra)
+Prescritivo<-purrr::pmap_dfr(Presc_temp, otimiza)
+Prescritivo %>% head()
+```
+
+Na função criada, teremos um range de possiveis valores otimos de operadores com seus respectivos tempos medios de espera. para simplificar, pegaremos os valores otimos que sejam inferiores a 1 minuto
+
+
+```{r echo=TRUE}
+Prescritivo %>%filter(Tempo.medio.de.espera.na.fila.minutos<=1) %>%
+  group_by(Hora)%>%
+  summarise(Tempo_medio = mean(Tempo.medio.de.espera.na.fila.minutos),Qtd_op = median(Qtd_op))
+```
+
+
